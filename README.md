@@ -81,8 +81,22 @@ Note that this code does not save the output of join-data into a gzipped geojson
 tile-join -f -o mbtiles/block_null.mbtiles mbtiles/block_null_z10.mbtiles mbtiles/block_null_z11.mbtiles
 ```
 ### Provider footprints
+We do not need to join data to the provider footprints since they require only the ID of the provider (hoconum) and geometry.
 
-## Using `join-data` to join geometry and tabular data
+The following code was used to create the provider geojsons but ***this should be replaced with geopandas.***  In addition, this code breaks out the different geojsons and tilesets by technology.  ***We probably need to change this to breakout by hoconum*** so that it will be clear which tileset should be added to the map when a provider is chosen by the end user.
+```
+ogr2ogr -f GeoJSON '/Users/steven/Data/No_TimeMachine/SOBBM/Provider_test/providers_exsat_test.geojson' PG:"host=gisp-proc-wcb-pg-int.cfddrd5nduv6.us-west-2.rds.amazonaws.com user=wcb_srosenberg dbname=wcb_internal" -sql "SELECT left(block_fips,5) as county_fips, hoconum, ST_Union(geom) as geom FROM (SELECT block_fips, hoconum FROM f477.fbd_jun2016_10feb17 WHERE consumer=1 AND transtech!=60 GROUP BY block_fips, hoconum) foo LEFT JOIN census2010.block_us ON geoid10=block_fips GROUP BY county_fips, hoconum" -progress
+ogr2ogr -f GeoJSON '/Users/steven/Data/No_TimeMachine/SOBBM/Provider_test/providers_sat_test.geojson' PG:"host=gisp-proc-wcb-pg-int.cfddrd5nduv6.us-west-2.rds.amazonaws.com user=wcb_srosenberg dbname=wcb_internal" -sql "SELECT left(block_fips,5) as county_fips, hoconum, ST_Union(geom) as geom FROM (SELECT block_fips, hoconum FROM f477.fbd_jun2016_10feb17 WHERE consumer=1 AND transtech=60 GROUP BY block_fips, hoconum) foo LEFT JOIN census2010.block_us ON geoid10=block_fips GROUP BY county_fips, hoconum" -progress
+```
+
+The following code was used to create the provider tilesets; we may need to revisit the simplification that `tippecanoe` does with these settings (and perhaps add `--coalesce-smallest-as-needed`).
+```
+tippecanoe -o '/Volumes/Steven.Rosenberg/My Documents/_WCB/SOBBM/provider_test/provider_exsat_test.mbtiles' -P -x county_fips -z 13 -Z 2 -f -d 14 --coalesce -l provider_exsat_test '/Users/steven/Data/No_TimeMachine/SOBBM/Provider_test/providers_exsat_test.geojson'
+tippecanoe -o '/Volumes/Steven.Rosenberg/My Documents/_WCB/SOBBM/provider_test/provider_sat_test.mbtiles' -P -z 13 -Z 2 -f -d 14 --coalesce -l provider_sat_test '/Users/steven/Data/No_TimeMachine/SOBBM/Provider_test/providers_sat_test.geojson'
+```
+## Background and Reference
+
+### Using `join-data` to join geometry and tabular data
 We need to join the tabular data to the geometry *before* running `tippecanoe` because of the way `tippecanoe` is designed.  The limit on each vector tile is 500 kB, inclusive of data.  If you create the tileset first, then add substantial amounts of data to the tiles, as would be the case using the `tippecanoe` then `tile-join` process described on the mapbox github page, you would have many tiles dropped for exceeding the 500k limit (since `tile-join` lacks the code to simplify that `tippecanoe` has).
 
 `join-data` is a "quick hack" perl script written by mapbox (Eric Fischer) to allow us to join the data first, then run tippecanoe.  Mapbox is looking into a longer-term solution, but for the time being, there are a number of issues limitations when using `join-data`.  
@@ -123,13 +137,13 @@ To avoid running the join twice, you can save the output of `join-data` to a fil
  * Saving the file: `data-join file1.geojson file1.csv | gzip -9 > joined.geojson.gz`
  * Using the saved file: `gzip -dc joined.geojson.gz | tippecanoe …` (note that `gzip -d` is the same as `gunzip`)
 
-## `tippecanoe` settings to create tilesets
+### `tippecanoe` settings to create tilesets
 There are a number of options in `tippecanoe` designed to ensure that each tile size remains below the 500k limit. The difficulty is in finding a combination of those options that provides enough reduction in tile size without creating odd visual artifacts or gaps (e.g., all the --drop flags will open up gaps in the data and can’t be used for these data).
 
-### Removing unneeded data
+#### Removing unneeded data
 As noted above, the tilesize includes the data payload, so it's important to drop any unnecessary fields using the `-x` or `-X` flags on `tippecanoe`.  Exactly what fields need to be excluded using `-x` (or included using `-y`) depends on the original source for the geojson and what fields it includes beyond the FIPS code and geometry.  For broadband data, we only want to include the 315 broadband values that matter for county and tract data, and the 315 broadband values plus the h2only_undev field.  For the state, county, CBSA, CD, CDP and tribal areas, we need the ID associated with each geography's geometry; and for the provider map, we need the hoconum.  **Any other data fields should be dropped.**
 
-### Reducing tile size by removing geometry data...without making it look bad.
+#### Reducing tile size by removing geometry data...without making it look bad.
 By default, `tippecanoe` reduces the level of detail for individual tiles when a tile is larger than 500k to try and reduce the tile size. It will continue to reduce the level of detail until it fits, or it gets to a detail level of 7 (a tile of 128 pixels across) and fails. This reduction in detail can cause odd visual artifacts, especially at low levels of detail. The reduction in size comes from greater simplification (see description of simplification below).
 
 Given the problems with the reduction in detail, and to avoid opening up gaps using the various `-drop` flags, this process relies on `--coalesce` and `--coalesce-smallest-as-needed` to reduce the size of tiles.
@@ -140,24 +154,24 @@ The `--coalesce-smallest-as-needed` flag simply identifies the smallest-area geo
 
 **Right now, `--coalesce-smallest-as-needed` is creating unexpected outputs in zoom 10 (where it is critical)**
 
-#### How `tippecanoe` simplifies geometry data
+##### How `tippecanoe` simplifies geometry data
 The distance represented by each pixel depends on the zoom level and the number of pixels per tile.
 
 Zoom level 0 incorporates the whole earth, and each zoom level higher represents a 2x gain in resolution in x and in y. Zoom level 1 is a 2x2 grid covering the earth; zoom level 2 is a 4x4 grid. So the degrees of lat/lon covered by each tile is ~360/(2^(zoom level).
 
 The number of pixels in each tile is controlled by the level of detail – the number of pixels is 2^detail level. So, for the default detail 12, there are 2^12 pixels or 4096 pixels. Taken with the zoom level, the resolution of each pixel is ~360/(2^(zoom level + detail)) in degrees. Taking ~0.00000274 feet per degree (at the equator), and you get the distance per pixel, which depends on zoom level and detail level. So, e.g., at zoom level 10 and detail level 12, each pixel is ~(360/(2^(10+12))/.00000274) = 32 feet.
 
-#### Simplification
+##### Simplification
 
 By default, the resolution per pixel is the distance that Tippecanoe uses in applying the Douglas-Peucker simplification (this is the same simplification in ST_Simplify and the default algorithm used in ArcGIS Pro). The `-S` command overrides this distance and provides a value to multiply that distance by for the simplification; i.e., a value of `-S 8` would use a distance of 8x32 feet at zoom level 10 and detail level 12.
 
 By default, the simplification modifies each polygon independently. This means that at higher simplification levels, gaps can open up between polygons, which is a problem for data like blocks, tracts and counties which should have complete coverage. The `--detect-shared-borders` flag is meant to prevent this from happening. [it appears there’s a bug in the implementation so that when detect-shared-borders is set and the level of detail decreases gaps will still open up. See https://github.com/mapbox/tippecanoe/issues/482].
 
-### Overzoom to avoid creating higher-zoom data than needed
+#### Overzoom to avoid creating higher-zoom data than needed
 
 The `-d` flag sets the detail level at the highest zoom (the default is 12). By setting `-d 14`, you are adding 4x as much resolution to the highest zoom level (set with the `-z` option), which means that as you zoom in past the highest zoom level, you have the resolution as if you had created two additional zoom levels. The advantage to using the `-d` option is that the resulting mbtiles file is much smaller (and is created much faster) than creating two additional zoom levels.
 
-## Using `tile-join` to combine tilesets
+### Using `tile-join` to combine tilesets
 We can reduce the number of tilesets by combining two tilesets into one in some instances using `tile-join`.  The 500k-per-tile limit applies when using `tile-join`.  So where we have tilesets that are at different zoom levels -- i.e., where overlaying two different tilesets won't create a tile that exceeds 500k -- we can combine tilesets.  This works for county data and block data, which have tilesets at different zoom levels; it also seems to work for tract and block data at zoom 9.  However, it will not work for tract data at zoom levels 5-8 since the tileset for each speed can approach 500k.  
 
 The syntax to combine two tilesets into one is `tile-join -f -o output.mbtiles input1.mbtiles input2.mbtiles` This puts each input tileset into a layer of the output tileset (we will investigate whether we can combine into one layer).
