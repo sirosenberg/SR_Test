@@ -152,7 +152,7 @@ The `--coalesce` flag aggregates together geometries with the same field values 
 
 The `--coalesce-smallest-as-needed` flag simply identifies the smallest-area geometries and merges them into their neighbors. Right now, the combined geometry has the data values of the larger geometry. That can and does change the values for some areas and so can change the appearance. Thus the use of `--coalesce` to minimize the number of blocks that might change their value.
 
-**Right now, `--coalesce-smallest-as-needed` is creating unexpected outputs in zoom 10 (where it is critical)**
+***Right now, `--coalesce-smallest-as-needed` is creating unexpected outputs in zoom 10 (where it is critical)***
 
 ##### How `tippecanoe` simplifies geometry data
 The distance represented by each pixel depends on the zoom level and the number of pixels per tile.
