@@ -22,6 +22,65 @@ Zoom level | geometry data source | tabular data source | tippecanoe settings
 ## Code used to create tilesets (as of 17Nov17)
 #### The remainder of the document tries to explain the process leading up to these commands and the choices made
 
+### County
+```
+# county set 1
+./join-data-county.pl geojsons/us_counties_2010_500k_sort.geojson csvs/county_data_sort_round.csv | time tippecanoe -P -Z 0 -z 2 -S 8 --detect-shared-borders --coalesce-smallest-as-needed -x geoid10 -l county_round_z0_z2 -f -o mbtiles/county_round_z0_z2.mbtiles 2>&1 | tee ./county_z02.log
+# county set 2
+./join-data-county.pl geojsons/us_counties_2010_500k_sort.geojson csvs/county_data_sort_round.csv | time tippecanoe -P -Z 3 -z 4 --detect-shared-borders --coalesce-smallest-as-needed -x geoid10 -l county_round_z3_z4 -f -o mbtiles/county_round_z3_z4.mbtiles 2>&1 | tee ./county_z34.log
+tile-join -f -o mbtiles/county_round.mbtiles mbtiles/county_round_z0_z2.mbtiles mbtiles/county_round_z3_z6.mbtiles
+```
+### Tracts
+```
+# tract set 1 (five different speeds)
+./join-data-tract.pl geojsons/us_tracts_2010_500k_4326_sort.geojson csvs/tract_data_sort_round_200.csv| time tippecanoe -P -Z 4 -z 5 -S 8 --detect-shared-borders --coalesce --coalesce-smallest-as-needed  -x STATE -x COUNTY -x TRACT -x NAME -x LSAD -x Tract -x CENSUSAREA -x tract_id2010 -l tract_round_200_z4_z5 -f -o mbtiles/tract_round_200_z4_z5.mbtiles 2>&1 | tee ./tract200_z4.log
+./join-data-tract.pl geojsons/us_tracts_2010_500k_4326_sort.geojson csvs/tract_data_sort_round_10_1.csv| time tippecanoe -P -Z 4 -z 5 -S 8 --detect-shared-borders --coalesce --coalesce-smallest-as-needed  -x STATE -x COUNTY -x TRACT -x NAME -x LSAD -x Tract -x CENSUSAREA -x tract_id2010 -l tract_round_10_1_z4_z5 -f -o mbtiles/tract_round_10_1_z4_z5.mbtiles 2>&1 | tee ./tract10_z4.log
+./join-data-tract.pl geojsons/us_tracts_2010_500k_4326_sort.geojson csvs/tract_data_sort_round_25_3.csv| time tippecanoe -P -Z 4 -z 5 -S 8 --detect-shared-borders --coalesce --coalesce-smallest-as-needed  -x STATE -x COUNTY -x TRACT -x NAME -x LSAD -x Tract -x CENSUSAREA -x tract_id2010 -l tract_round_25_3_z4_z5 -f -o mbtiles/tract_round_25_3_z4_z5.mbtiles 2>&1 | tee ./tract25_z4.log
+./join-data-tract.pl geojsons/us_tracts_2010_500k_4326_sort.geojson csvs/tract_data_sort_round_50_5.csv| time tippecanoe -P -Z 4 -z 5 -S 8 --detect-shared-borders --coalesce --coalesce-smallest-as-needed  -x STATE -x COUNTY -x TRACT -x NAME -x LSAD -x Tract -x CENSUSAREA -x tract_id2010 -l tract_round_50_5_z4_z5 -f -o mbtiles/tract_round_50_5_z4_z5.mbtiles 2>&1 | tee ./tract50_z4.log
+./join-data-tract.pl geojsons/us_tracts_2010_500k_4326_sort.geojson csvs/tract_data_sort_round_100_10.csv| time tippecanoe -P -Z 4 -z 5 -S 8 --detect-shared-borders --coalesce --coalesce-smallest-as-needed  -x STATE -x COUNTY -x TRACT -x NAME -x LSAD -x Tract -x CENSUSAREA -x tract_id2010 -l tract_round_100_10_z4_z5 -f -o mbtiles/tract_round_100_10_z4_z5.mbtiles 2>&1 | tee ./tract100_z4.log
+
+# tract set 2 (five different speeds)
+./join-data-tract.pl geojsons/us_tracts_2010_500k_4326_sort.geojson csvs/tract_data_sort_round_200.csv| time tippecanoe -P -Z 6 -z 9 --detect-shared-borders --coalesce --coalesce-smallest-as-needed  -x STATE -x COUNTY -x TRACT -x NAME -x LSAD -x Tract -x CENSUSAREA -x tract_id2010 -l tract_round_200_z6_z9 -f -o mbtiles/tract_round_200_z6_z9.mbtiles 2>&1 | tee ./tract200_z6.log
+./join-data-tract.pl geojsons/us_tracts_2010_500k_4326_sort.geojson csvs/tract_data_sort_round_10_1.csv| time tippecanoe -P -Z 6 -z 9 --detect-shared-borders --coalesce --coalesce-smallest-as-needed  -x STATE -x COUNTY -x TRACT -x NAME -x LSAD -x Tract -x CENSUSAREA -x tract_id2010 -l tract_round_10_1_z6_z9 -f -o mbtiles/tract_round_10_1_z6_z9.mbtiles 2>&1 | tee ./tract10_z6.log
+./join-data-tract.pl geojsons/us_tracts_2010_500k_4326_sort.geojson csvs/tract_data_sort_round_25_3.csv| time tippecanoe -P -Z 6 -z 9 --detect-shared-borders --coalesce --coalesce-smallest-as-needed  -x STATE -x COUNTY -x TRACT -x NAME -x LSAD -x Tract -x CENSUSAREA -x tract_id2010 -l tract_round_25_3_z6_z9 -f -o mbtiles/tract_round_25_3_z6_z9.mbtiles 2>&1 | tee ./tract25_z6.log
+./join-data-tract.pl geojsons/us_tracts_2010_500k_4326_sort.geojson csvs/tract_data_sort_round_50_5.csv| time tippecanoe -P -Z 6 -z 9 --detect-shared-borders --coalesce --coalesce-smallest-as-needed  -x STATE -x COUNTY -x TRACT -x NAME -x LSAD -x Tract -x CENSUSAREA -x tract_id2010 -l tract_round_50_5_z6_z9 -f -o mbtiles/tract_round_50_5_z6_z9.mbtiles 2>&1 | tee ./tract50_z6.log
+./join-data-tract.pl geojsons/us_tracts_2010_500k_4326_sort.geojson csvs/tract_data_sort_round_100_10.csv| time tippecanoe -P -Z 6 -z 9 --detect-shared-borders --coalesce --coalesce-smallest-as-needed  -x STATE -x COUNTY -x TRACT -x NAME -x LSAD -x Tract -x CENSUSAREA -x tract_id2010 -l tract_round_100_10_z6_z9 -f -o mbtiles/tract_round_100_10_z6_z9.mbtiles 2>&1 | tee ./tract100_z6.log
+
+tile-join -f -o mbtiles/tract_round_200.mbtiles mbtiles/tract_round_200_z4_z5.mbtiles mbtiles/tract_round_200_z6_z9.mbtiles
+tile-join -f -o mbtiles/tract_round_10_1.mbtiles mbtiles/tract_round_10_1_z4_z5.mbtiles mbtiles/tract_round_10_1_z6_z9.mbtiles
+tile-join -f -o mbtiles/tract_round_25_3.mbtiles mbtiles/tract_round_25_3_z4_z5.mbtiles mbtiles/tract_round_25_3_z6_z9.mbtiles
+tile-join -f -o mbtiles/tract_round_50_5.mbtiles mbtiles/tract_round_50_5_z4_z5.mbtiles mbtiles/tract_round_50_5_z6_z9.mbtiles
+tile-join -f -o mbtiles/tract_round_100_10.mbtiles mbtiles/tract_round_100_10_z4_z5.mbtiles mbtiles/tract_round_100_10_z6_z9.mbtiles
+```
+### Tract-block for zoom 9
+```
+# tract set 2 (using non-cartographic tracts)
+./join-data-tract2.pl geojsons/us_tracts_2010_4326.geojson csvs/tract_data_sort_round_all.csv| time tippecanoe -P -Z 9 -z 9 --detect-shared-borders --coalesce --coalesce-smallest-as-needed  -x tract_id2010 -l tract_round_all_z9 -f -o mbtiles/tract_round_all_z9.mbtiles 2>&1 | tee ./tract200_z9.log
+# block set 2 for large tracts
+./join-data.pl geojsons/big_tract_blocks.geojson csvs/block_numprov_full_null.csv| time tippecanoe -P -Z 9 -z 9 --detect-shared-borders --coalesce --coalesce-smallest-as-needed  -x block_fips -l big_tract_blocks_z9 -f -o mbtiles/big_tract_blocks_z9.mbtiles 2>&1 | tee ./big_tract_block_z9.log
+
+tile-join -f -o mbtiles/all_zoom9.mbtiles mbtiles/tract_round_all_z9.mbtiles mbtiles/big_tract_blocks_z9.mbtiles
+```
+### Blocks
+```
+# block set 1
+./join-data.pl geojsons/block_us.geojson csvs/block_numprov_full_null.csv | time tippecanoe -P -Z 10 -z 10 -S 8 --detect-shared-borders -x block_fips --coalesce --coalesce-smallest-as-needed -l block_null_z10 -f -o mbtiles/block_null_z10.mbtiles 2>&1 | tee ./block_null_z10.log
+# block set 2
+./join-data.pl geojsons/block_us.geojson csvs/block_numprov_full_null.csv | time tippecanoe -P -Z 11 -z 14 -d 14 --detect-shared-borders -x block_fips --coalesce-smallest-as-needed -l block_null_z11 -f -o mbtiles/block_null_z11.mbtiles 2>&1 | tee ./block_null_z11.log
+
+tile-join -f -o mbtiles/block_null.mbtiles mbtiles/block_null_z10.mbtiles mbtiles/block_null_z11.mbtiles
+```
+Note that at the end of the `tippecanoe` command, there's `2>&1 | tee filename.log` which redirects the output of `tippecanoe` from the standard error to standard out (`2>&1`), then splits the output to standard out and to a file (`| tee filename`) to preserve the run-time messages from `tippecanoe` about what tiles required additional reductions.
+
+This code creates the tract tiles through zoom 9, though with the block-tile layer, we only need to create through zoom 8.  It is possible to combine the tract tiles for all speeds at zoom 7, but not at zooms 5 or 6.
+
+The following code was used to create the geojson tract data for the tract-block layer at zoom 9 as a short-term measure.  ***This should be replaced with geopandas (in the case of the non-cartographic tract geojson).***
+`ogr2ogr -f GeoJSON ./us_tracts_2010_4326.geojson PG:"host=gisp-proc-wcb-pg-int.cfddrd5nduv6.us-west-2.rds.amazonaws.com user=wcb_srosenberg dbname=wcb_internal password=wcb_srosenberg" -sql "SELECT tract_fips, geom FROM census2010.tract_land_4326"`
+
+The following code was used to create a geojson file for blocks in large tracts as a short-term measure.  Since we can use the general block geojson data, and simply create a csv with data only for blocks in large tracts, ***this should be replaced with pandas to create that kind of csv.***
+`ogr2ogr -f GeoJSON ./big_tract_blocks.geojson PG:"host=gisp-proc-wcb-pg-int.cfddrd5nduv6.us-west-2.rds.amazonaws.com user=wcb_srosenberg dbname=wcb_internal password=wcb_srosenberg" -sql "SELECT geoid10, geom FROM census2010.block_us WHERE aland10>0 AND left(geoid10,11) IN (SELECT tract_fips FROM census2010.tract_land_4326 WHERE land_area_m > 2e9) ORDER BY geoid10"` 
+
+  
 
 ## Using `join-data` to join geometry and tabular data
 We need to join the tabular data to the geometry *before* running `tippecanoe` because of the way `tippecanoe` is designed.  The limit on each vector tile is 500 kB, inclusive of data.  If you create the tileset first, then add substantial amounts of data to the tiles, as would be the case using the `tippecanoe` then `tile-join` process described on the mapbox github page, you would have many tiles dropped for exceeding the 500k limit (since `tile-join` lacks the code to simplify that `tippecanoe` has).
@@ -99,5 +158,6 @@ By default, the simplification modifies each polygon independently. This means t
 The `-d` flag sets the detail level at the highest zoom (the default is 12). By setting `-d 14`, you are adding 4x as much resolution to the highest zoom level (set with the `-z` option), which means that as you zoom in past the highest zoom level, you have the resolution as if you had created two additional zoom levels. The advantage to using the `-d` option is that the resulting mbtiles file is much smaller (and is created much faster) than creating two additional zoom levels.
 
 ## Using `tile-join` to combine tilesets
-We can reduce the number of tilesets by combining two tilesets into one in some instances using `tile-join`.  The 500k-per-tile limit applies when using `tile-join`.  So where we have tilesets that are at different zoom levels -- i.e., where overlaying two different tilesets won't create a tile that exceeds 500k -- we can combine tilesets.  This works for county data and block data, which have tilesets at different zoom levels; it also seems to work for tract and block data at zoom 9.  However, it will not work for tract data at zoom levels 5-8 since the tileset for each speed can approach 500k.  The syntax to combine two tilesets into one is
-`tile-join 
+We can reduce the number of tilesets by combining two tilesets into one in some instances using `tile-join`.  The 500k-per-tile limit applies when using `tile-join`.  So where we have tilesets that are at different zoom levels -- i.e., where overlaying two different tilesets won't create a tile that exceeds 500k -- we can combine tilesets.  This works for county data and block data, which have tilesets at different zoom levels; it also seems to work for tract and block data at zoom 9.  However, it will not work for tract data at zoom levels 5-8 since the tileset for each speed can approach 500k.  
+
+The syntax to combine two tilesets into one is `tile-join -f -o output.mbtiles input1.mbtiles input2.mbtiles` This puts each input tileset into a layer of the output tileset (we will investigate whether we can combine into one layer).
