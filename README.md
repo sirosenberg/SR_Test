@@ -64,7 +64,13 @@ tile-join -f -o mbtiles/tract_round_100_10.mbtiles mbtiles/tract_round_100_10_z4
 
 tile-join -f -o mbtiles/all_zoom9.mbtiles mbtiles/tract_round_all_z9.mbtiles mbtiles/big_tract_blocks_z9.mbtiles
 ```
-The following code was used to create the geojson tract data for the tract-block layer at zoom 9 as a short-term measure.  ***This should be replaced with geopandas (in the case of the non-cartographic tract geojson).***
+The following code was used to create the geojson tract data for the tract-block layer at zoom 9 as a short-term measure.  ***This should be replaced with geopandas.***
+```
+CREATE TABLE census2010.tract_land_4326 AS (
+SELECT left(geoid10,11) as tract_fips, ST_Transform(ST_Union(geom),4326) as geom, ST_Area(ST_Transform(ST_Union(geom),900913)) as land_area_m
+FROM census2010.block_us WHERE aland10>0 GROUP BY tract_fips ORDER BY tract_fips);
+```
+
 `ogr2ogr -f GeoJSON ./us_tracts_2010_4326.geojson PG:"host=gisp-proc-wcb-pg-int.cfddrd5nduv6.us-west-2.rds.amazonaws.com user=wcb_srosenberg dbname=wcb_internal password=wcb_srosenberg" -sql "SELECT tract_fips, geom FROM census2010.tract_land_4326"`
 
 The following code was used to create a geojson file for blocks in large tracts as a short-term measure.  Since we can use the general block geojson data, and simply create a csv with data only for blocks in large tracts, ***this should be replaced with pandas to create that kind of csv.***
