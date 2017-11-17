@@ -20,7 +20,7 @@ Zoom level | geometry data source | tabular data source | tippecanoe settings
 11-14 | blocks | block_numprov | block set 2
 
 ## Code used to create tilesets (as of 17Nov17)
-#### The remainder of the document tries to explain the process leading up to these commands and the choices made
+#### The remainder of the document, after the code below, tries to explain the process leading up to these commands and the choices made
 
 Note that at the end of the `tippecanoe` command, there's `2>&1 | tee filename.log` which redirects the output of `tippecanoe` from the standard error to standard out (`2>&1`), then splits the output to standard out and to a file (`| tee filename`) to preserve the run-time messages from `tippecanoe` about what tiles required additional reductions.
 
@@ -71,10 +71,14 @@ SELECT left(geoid10,11) as tract_fips, ST_Transform(ST_Union(geom),4326) as geom
 FROM census2010.block_us WHERE aland10>0 GROUP BY tract_fips ORDER BY tract_fips);
 ```
 
-`ogr2ogr -f GeoJSON ./us_tracts_2010_4326.geojson PG:"host=gisp-proc-wcb-pg-int.cfddrd5nduv6.us-west-2.rds.amazonaws.com user=wcb_srosenberg dbname=wcb_internal password=wcb_srosenberg" -sql "SELECT tract_fips, geom FROM census2010.tract_land_4326"`
+```
+ogr2ogr -f GeoJSON ./us_tracts_2010_4326.geojson PG:"host=gisp-proc-wcb-pg-int.cfddrd5nduv6.us-west-2.rds.amazonaws.com user=wcb_srosenberg dbname=wcb_internal password=wcb_srosenberg" -sql "SELECT tract_fips, geom FROM census2010.tract_land_4326"
+```
 
 The following code was used to create a geojson file for blocks in large tracts as a short-term measure.  Since we can use the general block geojson data, and simply create a csv with data only for blocks in large tracts, ***this should be replaced with pandas to create that kind of csv.***
-`ogr2ogr -f GeoJSON ./big_tract_blocks.geojson PG:"host=gisp-proc-wcb-pg-int.cfddrd5nduv6.us-west-2.rds.amazonaws.com user=wcb_srosenberg dbname=wcb_internal password=wcb_srosenberg" -sql "SELECT geoid10, geom FROM census2010.block_us WHERE aland10>0 AND left(geoid10,11) IN (SELECT tract_fips FROM census2010.tract_land_4326 WHERE land_area_m > 2e9) ORDER BY geoid10"` 
+```
+ogr2ogr -f GeoJSON ./big_tract_blocks.geojson PG:"host=gisp-proc-wcb-pg-int.cfddrd5nduv6.us-west-2.rds.amazonaws.com user=wcb_srosenberg dbname=wcb_internal password=wcb_srosenberg" -sql "SELECT geoid10, geom FROM census2010.block_us WHERE aland10>0 AND left(geoid10,11) IN (SELECT tract_fips FROM census2010.tract_land_4326 WHERE land_area_m > 2e9) ORDER BY geoid10"
+```
 
 ### Blocks
 Note that this code does not save the output of join-data into a gzipped geojson, which might make the second run complete more quickly.  See Issue #4 of `join-data` section below.
@@ -123,8 +127,7 @@ To ensure the data are sorted properly, there are a couple of options:
     * `sed '1s/^/ /' block_numprov.csv | sort |sed '1s/^.//'> block_numprov_sort.csv`
 or
     * `head -n 1 block_numprov.csv> block_numprov _sort.csv; tail -n +2 block_numprov.csv | sort >> block_numprov_sort.csv`
-
-  * It appears the sort command can shuffle rows, so, e.g., the projection information moves to the end of the file. This does not appear to be a problem for Tippecanoe, but would probably render the resulting geojson unsuitable for anything else.
+  * It appears the sort command can shuffle rows, so, e.g., the projection information moves to the end of the file. This does not appear to be a problem for Tippecanoe, but could render the resulting geojson unsuitable for anything else.
 
 **Issue 2:** *Join-data looks for the field name(s) of the spatial-identifier/FIPS code of the geojson* 
 
@@ -139,6 +142,7 @@ Tippecanoe stores data by creating a table of all values across all geometries i
 * For counties, which have integer data, this is a smaller problem (though there may be some benefit to limiting the range of integer values).  However, it appears that `data-join` drops NULL values (both the integer and the field name), which provides significant savings.  Thus we want to have the block_numprov table include NULLs instead of 0 values; and then use the "default" value in styling (rather than looking for a 0 value).  
 
 **Issue 4:** *`join-data` can take a long time to run (a few hours) for block data*
+
 To avoid running the join twice, you can save the output of `join-data` to a file, though the time to run it for county and tract data is quite short.  Since the output of `join-data` is simply a geojson with the data fields added, it would be an extremely large geojson for block data (~70 GB).  However, you can save the ouput to a gzip file, then stream the output of gunzip to tippecanoe:
  * Saving the file: `data-join file1.geojson file1.csv | gzip -9 > joined.geojson.gz`
  * Using the saved file: `gzip -dc joined.geojson.gz | tippecanoe …` (note that `gzip -d` is the same as `gunzip`)
