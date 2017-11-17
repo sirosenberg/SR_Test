@@ -15,12 +15,14 @@ Zoom level | geometry data source | tabular data source | tippecanoe settings
 3-4|cartographic (500k) counties | county_numprov rounded to .x | county set 2
 5-8|cartographic (500k) tracts | tract_numprov rounded to .x | tract set 1, one for each speed
 9a | tracts, excluding water blocks | tract_numprov rounded to .x | tract set 2
-9b | blocks in tracts >2.e9 m<sup>2</sup>| block_numprov | block set 2
+9b | blocks in tracts >2.e9 m<sup>2</sup>| block_numprov | big-block set
 10 | blocks | block_numprov | block set 1
 11-14 | blocks | block_numprov | block set 2
 
 ## Code used to create tilesets (as of 17Nov17)
 #### The remainder of the document tries to explain the process leading up to these commands and the choices made
+
+Note that at the end of the `tippecanoe` command, there's `2>&1 | tee filename.log` which redirects the output of `tippecanoe` from the standard error to standard out (`2>&1`), then splits the output to standard out and to a file (`| tee filename`) to preserve the run-time messages from `tippecanoe` about what tiles required additional reductions.
 
 ### County
 ```
@@ -31,6 +33,7 @@ Zoom level | geometry data source | tabular data source | tippecanoe settings
 tile-join -f -o mbtiles/county_round.mbtiles mbtiles/county_round_z0_z2.mbtiles mbtiles/county_round_z3_z6.mbtiles
 ```
 ### Tracts
+This code creates the tract tiles through zoom 9, though with the block-tile layer, we only need to create through zoom 8.  It is possible to combine the tract tiles for all speeds at zoom 7, but not at zooms 5 or 6.
 ```
 # tract set 1 (five different speeds)
 ./join-data-tract.pl geojsons/us_tracts_2010_500k_4326_sort.geojson csvs/tract_data_sort_round_200.csv| time tippecanoe -P -Z 4 -z 5 -S 8 --detect-shared-borders --coalesce --coalesce-smallest-as-needed  -x STATE -x COUNTY -x TRACT -x NAME -x LSAD -x Tract -x CENSUSAREA -x tract_id2010 -l tract_round_200_z4_z5 -f -o mbtiles/tract_round_200_z4_z5.mbtiles 2>&1 | tee ./tract200_z4.log
@@ -56,12 +59,19 @@ tile-join -f -o mbtiles/tract_round_100_10.mbtiles mbtiles/tract_round_100_10_z4
 ```
 # tract set 2 (using non-cartographic tracts)
 ./join-data-tract2.pl geojsons/us_tracts_2010_4326.geojson csvs/tract_data_sort_round_all.csv| time tippecanoe -P -Z 9 -z 9 --detect-shared-borders --coalesce --coalesce-smallest-as-needed  -x tract_id2010 -l tract_round_all_z9 -f -o mbtiles/tract_round_all_z9.mbtiles 2>&1 | tee ./tract200_z9.log
-# block set 2 for large tracts
+# big-block set
 ./join-data.pl geojsons/big_tract_blocks.geojson csvs/block_numprov_full_null.csv| time tippecanoe -P -Z 9 -z 9 --detect-shared-borders --coalesce --coalesce-smallest-as-needed  -x block_fips -l big_tract_blocks_z9 -f -o mbtiles/big_tract_blocks_z9.mbtiles 2>&1 | tee ./big_tract_block_z9.log
 
 tile-join -f -o mbtiles/all_zoom9.mbtiles mbtiles/tract_round_all_z9.mbtiles mbtiles/big_tract_blocks_z9.mbtiles
 ```
+The following code was used to create the geojson tract data for the tract-block layer at zoom 9 as a short-term measure.  ***This should be replaced with geopandas (in the case of the non-cartographic tract geojson).***
+`ogr2ogr -f GeoJSON ./us_tracts_2010_4326.geojson PG:"host=gisp-proc-wcb-pg-int.cfddrd5nduv6.us-west-2.rds.amazonaws.com user=wcb_srosenberg dbname=wcb_internal password=wcb_srosenberg" -sql "SELECT tract_fips, geom FROM census2010.tract_land_4326"`
+
+The following code was used to create a geojson file for blocks in large tracts as a short-term measure.  Since we can use the general block geojson data, and simply create a csv with data only for blocks in large tracts, ***this should be replaced with pandas to create that kind of csv.***
+`ogr2ogr -f GeoJSON ./big_tract_blocks.geojson PG:"host=gisp-proc-wcb-pg-int.cfddrd5nduv6.us-west-2.rds.amazonaws.com user=wcb_srosenberg dbname=wcb_internal password=wcb_srosenberg" -sql "SELECT geoid10, geom FROM census2010.block_us WHERE aland10>0 AND left(geoid10,11) IN (SELECT tract_fips FROM census2010.tract_land_4326 WHERE land_area_m > 2e9) ORDER BY geoid10"` 
+
 ### Blocks
+Note that this code does not save the output of join-data into a gzipped geojson, which might make the second run complete more quickly.  See Issue #4 of `join-data` section below.
 ```
 # block set 1
 ./join-data.pl geojsons/block_us.geojson csvs/block_numprov_full_null.csv | time tippecanoe -P -Z 10 -z 10 -S 8 --detect-shared-borders -x block_fips --coalesce --coalesce-smallest-as-needed -l block_null_z10 -f -o mbtiles/block_null_z10.mbtiles 2>&1 | tee ./block_null_z10.log
@@ -70,17 +80,7 @@ tile-join -f -o mbtiles/all_zoom9.mbtiles mbtiles/tract_round_all_z9.mbtiles mbt
 
 tile-join -f -o mbtiles/block_null.mbtiles mbtiles/block_null_z10.mbtiles mbtiles/block_null_z11.mbtiles
 ```
-Note that at the end of the `tippecanoe` command, there's `2>&1 | tee filename.log` which redirects the output of `tippecanoe` from the standard error to standard out (`2>&1`), then splits the output to standard out and to a file (`| tee filename`) to preserve the run-time messages from `tippecanoe` about what tiles required additional reductions.
-
-This code creates the tract tiles through zoom 9, though with the block-tile layer, we only need to create through zoom 8.  It is possible to combine the tract tiles for all speeds at zoom 7, but not at zooms 5 or 6.
-
-The following code was used to create the geojson tract data for the tract-block layer at zoom 9 as a short-term measure.  ***This should be replaced with geopandas (in the case of the non-cartographic tract geojson).***
-`ogr2ogr -f GeoJSON ./us_tracts_2010_4326.geojson PG:"host=gisp-proc-wcb-pg-int.cfddrd5nduv6.us-west-2.rds.amazonaws.com user=wcb_srosenberg dbname=wcb_internal password=wcb_srosenberg" -sql "SELECT tract_fips, geom FROM census2010.tract_land_4326"`
-
-The following code was used to create a geojson file for blocks in large tracts as a short-term measure.  Since we can use the general block geojson data, and simply create a csv with data only for blocks in large tracts, ***this should be replaced with pandas to create that kind of csv.***
-`ogr2ogr -f GeoJSON ./big_tract_blocks.geojson PG:"host=gisp-proc-wcb-pg-int.cfddrd5nduv6.us-west-2.rds.amazonaws.com user=wcb_srosenberg dbname=wcb_internal password=wcb_srosenberg" -sql "SELECT geoid10, geom FROM census2010.block_us WHERE aland10>0 AND left(geoid10,11) IN (SELECT tract_fips FROM census2010.tract_land_4326 WHERE land_area_m > 2e9) ORDER BY geoid10"` 
-
-  
+### Provider footprints
 
 ## Using `join-data` to join geometry and tabular data
 We need to join the tabular data to the geometry *before* running `tippecanoe` because of the way `tippecanoe` is designed.  The limit on each vector tile is 500 kB, inclusive of data.  If you create the tileset first, then add substantial amounts of data to the tiles, as would be the case using the `tippecanoe` then `tile-join` process described on the mapbox github page, you would have many tiles dropped for exceeding the 500k limit (since `tile-join` lacks the code to simplify that `tippecanoe` has).
