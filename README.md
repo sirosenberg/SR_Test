@@ -72,12 +72,12 @@ FROM census2010.block_us WHERE aland10>0 GROUP BY tract_fips ORDER BY tract_fips
 ```
 
 ```
-ogr2ogr -f GeoJSON ./us_tracts_2010_4326.geojson PG:"host=gisp-proc-wcb-pg-int.cfddrd5nduv6.us-west-2.rds.amazonaws.com user=wcb_srosenberg dbname=wcb_internal password=wcb_srosenberg" -sql "SELECT tract_fips, geom FROM census2010.tract_land_4326"
+ogr2ogr -f GeoJSON ./us_tracts_2010_4326.geojson PG:"host=gisp-proc-wcb-pg-int.cfddrd5nduv6.us-west-2.rds.amazonaws.com user=wcb_srosenberg dbname=wcb_internal password=password" -sql "SELECT tract_fips, geom FROM census2010.tract_land_4326"
 ```
 
 The following code was used to create a geojson file for blocks in large tracts as a short-term measure.  Since we can use the general block geojson data, and simply create a csv with data only for blocks in large tracts, ***this should be replaced with pandas to create that kind of csv.***
 ```
-ogr2ogr -f GeoJSON ./big_tract_blocks.geojson PG:"host=gisp-proc-wcb-pg-int.cfddrd5nduv6.us-west-2.rds.amazonaws.com user=wcb_srosenberg dbname=wcb_internal password=wcb_srosenberg" -sql "SELECT geoid10, geom FROM census2010.block_us WHERE aland10>0 AND left(geoid10,11) IN (SELECT tract_fips FROM census2010.tract_land_4326 WHERE land_area_m > 2e9) ORDER BY geoid10"
+ogr2ogr -f GeoJSON ./big_tract_blocks.geojson PG:"host=gisp-proc-wcb-pg-int.cfddrd5nduv6.us-west-2.rds.amazonaws.com user=wcb_srosenberg dbname=wcb_internal password=password" -sql "SELECT geoid10, geom FROM census2010.block_us WHERE aland10>0 AND left(geoid10,11) IN (SELECT tract_fips FROM census2010.tract_land_4326 WHERE land_area_m > 2e9) ORDER BY geoid10"
 ```
 
 ### Blocks
@@ -139,7 +139,7 @@ This happens in the `join-data` script on line 19 (default is “geoid10” and 
 
 Tippecanoe stores data by creating a table of all values across all geometries in the tile, and uses (single byte) pointers from the geometries to that table (at least conceptually; see https://github.com/mapbox/vector-tile-spec/tree/master/2.1#44-feature-attributes). Thus having fewer numbers that repeat more often means saving on the data payload. 
 * For tract and county data, which are floating point, this makes rounding very important.  Rounding to 1 digit after the decimal means a smaller data payload and therefore fewer/smaller changes to the geometry data by `tippecanoe`.
-* For counties, which have integer data, this is a smaller problem (though there may be some benefit to limiting the range of integer values).  However, it appears that `data-join` drops NULL values (both the integer and the field name), which provides significant savings.  Thus we want to have the block_numprov table include NULLs instead of 0 values; and then use the "default" value in styling (rather than looking for a 0 value).  
+* For blocks, which have integer data, this is a smaller problem (though there may be some benefit to limiting the range of integer values).  However, it appears that `data-join` drops NULL values (both the integer and the field name), which provides significant savings.  Thus we want to have the block_numprov table include NULLs instead of 0 values; and then use the "default" value in styling (rather than looking for a 0 value).  
 
 **Issue 4:** *`join-data` can take a long time to run (a few hours) for block data*
 
@@ -153,7 +153,7 @@ There are a number of options in `tippecanoe` designed to ensure that each tile 
 #### Removing unneeded data
 As noted above, the tilesize includes the data payload, so it's important to drop any unnecessary fields using the `-x` or `-X` flags on `tippecanoe`.  Exactly what fields need to be excluded using `-x` (or included using `-y`) depends on the original source for the geojson and what fields it includes beyond the FIPS code and geometry.  For broadband data, we only want to include the 315 broadband values that matter for county and tract data, and the 315 broadband values plus the h2only_undev field.  For the state, county, CBSA, CD, CDP and tribal areas, we need the ID associated with each geography's geometry; and for the provider map, we need the hoconum.  **Any other data fields should be dropped.**
 
-#### Reducing tile size by removing geometry data...without making it look bad.
+#### Reducing tile size by reducing geometry data...without making it look bad.
 By default, `tippecanoe` reduces the level of detail for individual tiles when a tile is larger than 500k to try and reduce the tile size. It will continue to reduce the level of detail until it fits, or it gets to a detail level of 7 (a tile of 128 pixels across) and fails. This reduction in detail can cause odd visual artifacts, especially at low levels of detail. The reduction in size comes from greater simplification (see description of simplification below).
 
 Given the problems with the reduction in detail, and to avoid opening up gaps using the various `-drop` flags, this process relies on `--coalesce` and `--coalesce-smallest-as-needed` to reduce the size of tiles.
@@ -170,8 +170,6 @@ The distance represented by each pixel depends on the zoom level and the number 
 Zoom level 0 incorporates the whole earth, and each zoom level higher represents a 2x gain in resolution in x and in y. Zoom level 1 is a 2x2 grid covering the earth; zoom level 2 is a 4x4 grid. So the degrees of lat/lon covered by each tile is ~360/(2^(zoom level).
 
 The number of pixels in each tile is controlled by the level of detail – the number of pixels is 2^detail level. So, for the default detail 12, there are 2^12 pixels or 4096 pixels. Taken with the zoom level, the resolution of each pixel is ~360/(2^(zoom level + detail)) in degrees. Taking ~0.00000274 feet per degree (at the equator), and you get the distance per pixel, which depends on zoom level and detail level. So, e.g., at zoom level 10 and detail level 12, each pixel is ~(360/(2^(10+12))/.00000274) = 32 feet.
-
-##### Simplification
 
 By default, the resolution per pixel is the distance that Tippecanoe uses in applying the Douglas-Peucker simplification (this is the same simplification in ST_Simplify and the default algorithm used in ArcGIS Pro). The `-S` command overrides this distance and provides a value to multiply that distance by for the simplification; i.e., a value of `-S 8` would use a distance of 8x32 feet at zoom level 10 and detail level 12.
 
